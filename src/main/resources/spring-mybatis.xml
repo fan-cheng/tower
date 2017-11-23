@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans
+        xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:p="http://www.springframework.org/schema/p"
+        xmlns:context="http://www.springframework.org/schema/context"
+        xmlns:aop="http://www.springframework.org/schema/aop"
+        xmlns:tx="http://www.springframework.org/schema/tx"
+        xsi:schemaLocation="http://www.springframework.org/schema/beans
+                        http://www.springframework.org/schema/beans/spring-beans.xsd  
+                        http://www.springframework.org/schema/context  
+                        http://www.springframework.org/schema/context/spring-context.xsd  
+                        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+		                http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+    <!-- 自动扫描 -->
+    <context:component-scan base-package="cn.tower"/>
+    <!-- 引入配置文件 -->
+    <bean
+            id="propertyConfigurer"
+            class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property
+                name="location"
+                value="classpath:dev/jdbc.properties"/>
+    </bean>
+
+    <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource"
+          destroy-method="close"
+          p:driverClass="${driver}"
+          p:jdbcUrl="${url}"
+          p:user="${username}"
+          p:password="${password}"
+          p:testConnectionOnCheckout="${jdbc.c3p0.testConnectionOnCheckout}"
+          p:testConnectionOnCheckin="${jdbc.c3p0.testConnectionOnCheckin}"
+          p:idleConnectionTestPeriod="${jdbc.c3p0.idleConnectionTestPeriod}"
+          p:initialPoolSize="${jdbc.c3p0.initialPoolSize}"
+          p:minPoolSize="${jdbc.c3p0.minPoolSize}"
+          p:maxPoolSize="${jdbc.c3p0.maxPoolSize}"
+          p:maxIdleTime="${jdbc.c3p0.maxIdleTime}"/>
+
+
+    <!-- spring和MyBatis完美整合，不需要mybatis的配置映射文件 -->
+    <bean
+            id="sqlSessionFactory"
+            class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property
+                name="dataSource"
+                ref="dataSource"/>
+        <!-- 自动扫描mapping.xml文件 -->
+        <property
+                name="mapperLocations"
+                value="classpath*:cn/tower/**/mapper/*.xml"/>
+
+        <property
+                name="configLocation"
+                value="classpath:mybatis-config.xml"/>
+    </bean>
+
+    <bean
+            id="sqlSessionTemplate"
+            class="org.mybatis.spring.SqlSessionTemplate">
+        <constructor-arg
+                index="0"
+                ref="sqlSessionFactory"/>
+    </bean>
+
+    <!-- DAO接口所在包名，Spring会自动查找其下的类 -->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property
+                name="basePackage"
+                value="cn.tower.*.mapper"/>
+        <property
+                name="sqlSessionFactoryBeanName"
+                value="sqlSessionFactory"/>
+
+    </bean>
+
+    <!-- (事务管理)transaction manager, use JtaTransactionManager for global tx -->
+    <bean
+            id="transactionManager"
+            class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property
+                name="dataSource"
+                ref="dataSource"/>
+    </bean>
+
+    <aop:aspectj-autoproxy proxy-target-class="true"/>
+    <!-- 配合<tx:advice>和<aop:advisor>完成了事务切面的定义 -->
+    <!-- 使用强大的切点表达式是语言轻松定义目标方法 -->
+    <aop:config proxy-target-class="true">
+        <!-- 通过aop定义事务增强切面 -->
+        <aop:pointcut
+                expression=" execution(* cn.tower.*.service..*(..))"
+                id="serviceMethod"/>
+        <!-- 引用事务增强 -->
+        <aop:advisor
+                advice-ref="txAdvice"
+                pointcut-ref="serviceMethod"/>
+    </aop:config>
+    <!-- 事务增强 -->
+    <tx:advice
+            id="txAdvice"
+            transaction-manager="transactionManager">
+        <!-- 事务属性定义 -->
+        <tx:attributes>
+            <tx:method name="*"/>
+        </tx:attributes>
+    </tx:advice>
+</beans>
